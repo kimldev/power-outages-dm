@@ -29,6 +29,7 @@ const Activity = __mkIcon("<polyline points=\"22 12 18 12 15 21 9 3 6 12 2 12\"/
 const AlertTriangle = __mkIcon("<path d=\"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z\"/><line x1=\"12\" y1=\"9\" x2=\"12\" y2=\"13\"/><line x1=\"12\" y1=\"17\" x2=\"12.01\" y2=\"17\"/>");
 const Search = __mkIcon("<circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/>");
 const X = __mkIcon("<line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>");
+const ChevronDown = __mkIcon("<polyline points=\"6 9 12 15 18 9\"/>");
 const Power = __mkIcon("<path d=\"M18.36 6.64a9 9 0 1 1-12.73 0\"/><line x1=\"12\" y1=\"2\" x2=\"12\" y2=\"12\"/>");
 const PowerOff = __mkIcon("<path d=\"M18.36 6.64A9 9 0 0 1 20.77 15\"/><path d=\"M6.16 6.16a9 9 0 1 0 12.68 12.68\"/><line x1=\"12\" y1=\"2\" x2=\"12\" y2=\"12\"/><line x1=\"2\" y1=\"2\" x2=\"22\" y2=\"22\"/>");
 const Sun = __mkIcon("<circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2\"/><path d=\"M12 20v2\"/><path d=\"m4.93 4.93 1.41 1.41\"/><path d=\"m17.66 17.66 1.41 1.41\"/><path d=\"M2 12h2\"/><path d=\"M20 12h2\"/><path d=\"m6.34 17.66-1.41 1.41\"/><path d=\"m19.07 4.93-1.41 1.41\"/>");
@@ -197,7 +198,7 @@ const median = (arr) => { const a = arr.filter((x) => x != null).sort((x, y) => 
 const average = (arr) => { const a = arr.filter((x) => x != null); return a.length ? a.reduce((s, v) => s + v, 0) / a.length : null; };
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const HURRICANE = new Set([6, 7, 8, 9, 10, 11]);
-const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DAYPARTS = [["Night", 0, 6], ["Morning", 6, 12], ["Afternoon", 12, 18], ["Evening", 18, 24]];
 
 /* isApprox: reads the pre-computed approx_flags column ("start|est|actual").
@@ -458,7 +459,7 @@ function OutageDashboard() {
         <div style={{ display: "flex", gap: 11, alignItems: "flex-start", padding: "13px 16px", borderRadius: 12, background: C.amberWash, border: `1px solid ${C.amberSoft}` }}>
           <AlertTriangle size={16} color={C.amberDeep} style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.6 }}>
-            Every figure here is an <b style={{ color: C.ink }}>estimate reconstructed from DOMLEC's public outage notices</b> (WhatsApp, website and Facebook) — not official utility records and not a live status. Times are Atlantic Standard Time (AST, UTC−4). Treat durations and on-time rates as approximate, and never read this as a real-time “power is on/off right now” service. Outages with no confirmed all-clear are excluded from the duration and on-time figures.{view !== "analyst" && <span> See the <b style={{ color: C.amberDeep }}>Across the Island</b> tab’s “Notes &amp; caveats” for full methodology.</span>}
+            Every figure here is an <b style={{ color: C.ink }}>estimate reconstructed from DOMLEC's public outage notices</b> (WhatsApp, website and Facebook) — not official utility records and not a live status. Times are Atlantic Standard Time (AST, UTC−4). Treat durations and on-time rates as approximate, and never read this as a real-time “power is on/off right now” service. Outages with no confirmed all-clear are excluded from the duration and on-time figures.{view !== "analyst" ? <span> See the <b style={{ color: C.amberDeep }}>Across the Island</b> tab’s “Notes &amp; caveats” for full methodology.</span> : <span> Full methodology is in the <b style={{ color: C.amberDeep }}>Notes &amp; caveats</b> dropdown above.</span>}
           </div>
         </div>
       </div>
@@ -486,7 +487,7 @@ function Resident({ data, communities, community, setCommunity }) {
 
   const heat = useMemo(() => {
     const g = DOW.map(() => DAYPARTS.map(() => 0));
-    mine.forEach((r) => { if (!r._start) return; const di = (r._start.getDay() + 6) % 7; const h = r._start.getHours(); const pi = DAYPARTS.findIndex(([, a, b]) => h >= a && h < b); if (pi >= 0) g[di][pi]++; });
+    mine.forEach((r) => { if (!r._start) return; const di = r._start.getDay(); const h = r._start.getHours(); const pi = DAYPARTS.findIndex(([, a, b]) => h >= a && h < b); if (pi >= 0) g[di][pi]++; });
     return { g, max: Math.max(1, ...g.flat()) };
   }, [mine]);
 
@@ -611,6 +612,12 @@ function Analyst({ data }) {
   const buckets = [["<1h", 0, 1], ["1–2h", 1, 2], ["2–4h", 2, 4], ["4–8h", 4, 8], ["8–24h", 8, 24], [">24h", 24, 1e9]];
   const byDur = useMemo(() => buckets.map(([label, a, b]) => ({ label, value: restored.filter((r) => r._actualH >= a && r._actualH < b).length })), [restored]);
 
+  const heat = useMemo(() => {
+    const g = DOW.map(() => DAYPARTS.map(() => 0));
+    filtered.forEach((r) => { if (!r._start) return; const di = r._start.getDay(); const h = r._start.getHours(); const pi = DAYPARTS.findIndex(([, a, b]) => h >= a && h < b); if (pi >= 0) g[di][pi]++; });
+    return { g, max: Math.max(1, ...g.flat()) };
+  }, [filtered]);
+
   /* hurricane-season band (Jun–Nov) drawn behind the monthly chart */
   const hurrLabels = byMonth.filter((m) => HURRICANE.has(m.mo)).map((m) => m.label);
   const hurrBand = hurrLabels.length ? { x1: hurrLabels[0], x2: hurrLabels[hurrLabels.length - 1] } : null;
@@ -673,10 +680,24 @@ function Analyst({ data }) {
             <Tooltip contentStyle={tip} cursor={{ fill: "rgba(42,33,18,.05)" }} /><Bar dataKey="value" name="outages" radius={[0, 4, 4, 0]} maxBarSize={24}>{byParish.map((p, i) => <Cell key={i} fill={p.name === "Island-wide" ? C.amber : C.slate} />)}</Bar>
           </BarChart>)}
         </Card>
+        <Card>
+          <SectionTitle sub={selectedMonth ? `${fmtMonth(selectedMonth)} only · by start time` : "All outages, by start time"}>When do outages tend to start?</SectionTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "44px repeat(4,1fr)", gap: 5, fontSize: 11 }}>
+            <div />
+            {DAYPARTS.map(([n]) => <div key={n} style={{ color: C.faint, textAlign: "center", paddingBottom: 4, fontWeight: 500 }}>{n}</div>)}
+            {DOW.map((d, di) => (
+              <React.Fragment key={d}>
+                <div style={{ color: C.faint, display: "flex", alignItems: "center", fontWeight: 500 }}>{d}</div>
+                {DAYPARTS.map(([n], pi) => { const v = heat.g[di][pi]; const o = v / heat.max; return <div key={n} title={`${d} ${n}: ${v}`} style={{ height: 36, borderRadius: 7, background: v ? `rgba(207,122,22,${0.14 + o * 0.78})` : C.panel2, border: `1px solid ${v ? "transparent" : C.lineSoft}`, display: "grid", placeItems: "center", color: o > 0.5 ? "#fff" : C.sub, fontFamily: F.mono }}>{v || ""}</div>; })}
+              </React.Fragment>
+            ))}
+          </div>
+        </Card>
       </div>
       <div style={{ marginTop: 18 }}>
-        <button onClick={() => setShowMethod((v) => !v)} style={{ cursor: "pointer", background: C.panel, border: `1px solid ${C.line}`, color: C.sub, borderRadius: 9, padding: "7px 13px", fontSize: 12, fontFamily: F.body }}>
-          {showMethod ? "Hide notes & caveats" : "ⓘ Notes & caveats"}
+        <button onClick={() => setShowMethod((v) => !v)} aria-expanded={showMethod} style={{ cursor: "pointer", width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: C.panel, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 10, padding: "12px 15px", fontSize: 13, fontWeight: 600, fontFamily: F.body, textAlign: "left", boxShadow: "0 1px 2px rgba(42,33,18,.04)" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}><AlertTriangle size={15} color={C.amberDeep} /> Notes &amp; caveats — how to read these figures</span>
+          <ChevronDown size={18} color={C.sub} style={{ transition: "transform .2s ease", transform: showMethod ? "rotate(180deg)" : "none", flexShrink: 0 }} />
         </button>
         {showMethod && (
           <Card style={{ marginTop: 10, background: C.amberWash, borderColor: C.amberSoft }}>
