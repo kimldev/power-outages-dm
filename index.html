@@ -110,7 +110,15 @@ const COMMUNITY_ALIASES = {
   "new florida estate (bellevue chopin)": "New Florida Estate",
   "morne daniel (small section near chinese embassy)": "Morne Daniel",
   "central and east jimmit": "Jimmit",
-  "amba": "Amba/Enbas",
+  "amba": "Amba/Ambas/Enbas",
+  "upper ambas": "Amba/Ambas/Enbas",
+  "lower morne bruce": "Morne Bruce",
+  "upper kingshill": "Kingshill",
+  "dowasco pump road (in giraudel)": "DOWASCO Pump Road",
+  "dowasco's pump road (in giraudel)": "DOWASCO Pump Road",
+  "dowasco pump road at giraudel": "DOWASCO Pump Road",
+  "rose hill": "Rose Hill (Bellevue Chopin)",
+  "rose hill bellvue chopin": "Bellevue Chopin",
 };
 
 /* Corridor / region phrases → the explicitly-named endpoint communities they
@@ -126,27 +134,57 @@ const CORRIDOR_ENDPOINTS = {
   "jimmit to portsmouth": ["Jimmit", "Portsmouth"],
   "bourne to wesley (sugar loaf east feeder)": ["Bourne", "Wesley"],
   "wakama (castle bruce) to wesley": ["Wakama/Wakaman Point", "Wesley"],
-  "west coast from upper fond cole to north end marigot": ["Upper Fond Cole", "Marigot"],
+  "west coast from upper fond cole to north end marigot": ["Fond Cole", "Marigot"],
   "canefield to jimmit": ["Canefield", "Jimmit"],
   "sections of canefield flat including 1st street": ["Canefield"],
   "sections of fond baron": ["Fond Baron"],
   "sections of belfast": ["Belfast"],
 };
 
+/* Roseau umbrella: selecting "Roseau" surfaces any outage naming one of the
+   capital's streets, districts, or folded suburbs. Each member token still
+   resolves to its own entry where applicable (districts/suburbs stay
+   individually selectable; bare street names do not). Matched by exact token
+   (lower-case) OR by the prefixes below (for the many "Bath Road between…"
+   street-segment variants). */
+const ROSEAU_MEMBERS = new Set([
+  "high street", "cornwall street", "king george v street (cross street to dame eugenia boulevard)",
+  "victoria street", "hanover street (between cork street and king george v street)",
+  "long lane (between cork street and king george v street)", "love lane", "john's lane",
+  "cross lane", "glover lane", "river street between bath road and independence street",
+  "hillsborough street between bath road and independence street",
+  "national bank of dominica hillsborough street branch",
+  "lower centre street", "lower center street", "lower turkey lane", "lower virgin lane",
+  "newtown", "citronier", "charlotte valley", "lower morne bruce", "goodwill", "bath estate", "st. aroment",
+]);
+const ROSEAU_PREFIXES = ["bath road", "bathroad", "king george v street", "hillsborough street", "river street", "upper federation drive"];
+const inRoseau = (tok) => {
+  const k = tok.toLowerCase();
+  if (ROSEAU_MEMBERS.has(k)) return true;
+  return ROSEAU_PREFIXES.some((p) => k.startsWith(p));
+};
+
+/* communityNames(row) → Map of canonicalName → array of the raw source tokens
+   that produced it. Keys are the picker/search names; the token list lets the
+   UI show which specific area an outage actually named (e.g. under "Roseau").
+   The CSV is never modified; this is display/search resolution only. */
 const communityNames = (r) => {
-  const out = new Set();
+  const out = new Map();
+  const add = (name, tok) => { if (!out.has(name)) out.set(name, []); if (tok && !out.get(name).includes(tok)) out.get(name).push(tok); };
   splitList(r.affected_communities).forEach((tok) => {
     const key = tok.toLowerCase();
-    if (CORRIDOR_ENDPOINTS[key]) { CORRIDOR_ENDPOINTS[key].forEach((n) => out.add(n)); return; }
-    if (COMMUNITY_ALIASES[key]) { out.add(COMMUNITY_ALIASES[key]); return; }
+    if (inRoseau(tok)) add("Roseau", tok);            /* umbrella (in addition to any own entry below) */
+    if (CORRIDOR_ENDPOINTS[key]) { CORRIDOR_ENDPOINTS[key].forEach((n) => add(n, tok)); return; }
+    if (COMMUNITY_ALIASES[key]) { add(COMMUNITY_ALIASES[key], tok); return; }
     if (COMMUNITY_SUPPRESS.has(key)) return;
-    /* drop pure street/region tokens that aren't a named community */
     if (/\b(to|from|between|including|across|parts of|sections of|several|multiple|road to|street|avenue|lane|drive|boulevard|feeder|estate pump road)\b/i.test(tok)) return;
     if (/customers|island|goodwill.*south|south of/i.test(tok)) return;
-    if (tok.length > 1) out.add(tok);
+    if (tok.length > 1) add(tok, tok);
   });
   return out;
 };
+/* Set of canonical names a row is findable under (for matching/dropdown). */
+const communityKeys = (r) => new Set(communityNames(r).keys());
 
 /* True when a selected community is surfaced for a row only via a corridor
    phrase (so the UI can show the "reported by corridor" note). */
@@ -356,7 +394,7 @@ function OutageDashboard() {
   }, [data]);
   const communities = useMemo(() => {
     const s = new Set();
-    data.forEach((r) => { if (!isIslandWide(r)) communityNames(r).forEach((c) => s.add(c)); });
+    data.forEach((r) => { if (!isIslandWide(r)) communityKeys(r).forEach((c) => s.add(c)); });
     return [...s].sort();
   }, [data]);
 
@@ -431,7 +469,7 @@ function OutageDashboard() {
 
 /* ════════ RESIDENT ════════ */
 function Resident({ data, communities, community, setCommunity }) {
-  const mine = useMemo(() => (!community ? [] : data.filter((r) => isIslandWide(r) || communityNames(r).has(community))), [data, community]);
+  const mine = useMemo(() => (!community ? [] : data.filter((r) => isIslandWide(r) || communityKeys(r).has(community))), [data, community]);
   const hasCorridorMatch = useMemo(() => !!community && mine.some((r) => isCorridorMatch(r, community)), [mine, community]);
   const restored = mine.filter((r) => r._actualH != null);
   const avgDur = average(restored.map((r) => r._actualH));
@@ -504,6 +542,7 @@ function Resident({ data, communities, community, setCommunity }) {
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, color: C.ink }}>{r._dispDate ? <span style={r._dispApprox ? { color: C.faint } : undefined}>{r._dispDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{r._dispApprox && <span style={{ color: C.faint, fontStyle: "italic" }}> (notice)</span>}</span> : "—"} · <span style={{ color: C.sub }}>{r.cause_category}</span>{isIslandWide(r) && <span style={{ color: C.amberDeep, fontWeight: 600 }}> · island-wide</span>}</div>
                       <div style={{ fontSize: 12, color: C.faint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.cause || "Reason not stated"}</div>
+                      {!isIslandWide(r) && (() => { const areas = communityNames(r).get(community) || []; return areas.length ? <div style={{ fontSize: 11.5, color: C.sub, marginTop: 3 }}>Named: {areas.join(", ")}</div> : null; })()}
                     </div>
                     <div style={{ textAlign: "right", fontFamily: F.mono, fontSize: 12, whiteSpace: "nowrap" }}>
                       <div style={{ color: C.ink }}>{fmtDur(r._actualH)}</div>
