@@ -695,12 +695,16 @@ function Analyst({ data }) {
                   <b style={{ color: C.ink }}>Planned outages</b> appear at their scheduled window. <b style={{ color: C.ink }}>"Assumed restored"</b> means no all-clear was posted — the outage is presumed completed at the scheduled end with no evidence of delay or exception in later notices.
                 </div>
                 <div style={{ marginBottom: 10 }}>
+                  <b style={{ color: C.ink }}>What the causes mean.</b>{" "}
+                  <b style={{ color: C.ink }}>Maintenance</b> — planned or urgent maintenance work (line upgrades, vegetation clearing). <b style={{ color: C.ink }}>Geothermal</b> — tied to the new geothermal plant, its units, or its transmission line, including a generation shortfall from a plant fault. <b style={{ color: C.ink }}>Generation</b> — a capacity shortfall or load-shedding not tied to the geothermal plant. <b style={{ color: C.ink }}>Equipment fault</b> — a failure of a specific line, feeder, substation, cable, or transformer. <b style={{ color: C.ink }}>Vegetation</b> — trees or branches on the lines. <b style={{ color: C.ink }}>Weather</b> — storms or rain damaging infrastructure. <b style={{ color: C.ink }}>Other</b> — a stated cause fitting none of the above. <b style={{ color: C.ink }}>Unknown</b> — cause not stated, or still under investigation. Categories reflect how DOMLEC described each outage, not an independent finding of root cause.
+                </div>
+                <div style={{ marginBottom: 10 }}>
                   <b style={{ color: C.ink }}>Dates.</b>{" "}
                   Outages are placed by their start time. When DOMLEC's notice gave no start time, the date it was posted is used instead, so the outage still counts in the right month. A handful of notices gave neither, and those outages aren't placed on the monthly chart.
                 </div>
                 <div>
                   <b style={{ color: C.ink }}>Sources.</b>{" "}
-                  DOMLEC public notices — the WhatsApp channel, the DOMLEC website (<code style={{ color: C.amberDeep, fontFamily: F.mono }}>domlec.dm/outages</code>), and Facebook. All times Atlantic Standard Time (AST, UTC−4).
+                  DOMLEC public notices — the WhatsApp channel, the DOMLEC website (<code style={{ color: C.amberDeep, fontFamily: F.mono }}>domlec.dm/outages</code>), and Facebook. The Facebook records currently cover January–March only; outages from April onward come from the WhatsApp channel and website, so filtering to Facebook alone shows just the earlier months. All times Atlantic Standard Time (AST, UTC−4).
                 </div>
               </div>
             </div>
