@@ -13,10 +13,6 @@
 <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js" crossorigin></script>
 <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js" crossorigin></script>
-
-<script data-goatcounter="https://kimldev.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
-
 </head>
 <body>
 <div id="root"></div>
@@ -96,6 +92,69 @@ const workHoursLost = (start, end) => {
 };
 const splitList = (s) => String(s || "").split(";").map((x) => x.trim()).filter(Boolean);
 const isIslandWide = (r) => /island[\s-]?wide/i.test(r.affected_communities || "");
+
+/* ── Community resolution ──────────────────────────────────────────────
+   DOMLEC names some affected areas as raw tokens, some inside corridor
+   phrases ("Jimmit to Portsmouth"), and some with parentheticals or street
+   detail. communityNames(row) returns the set of canonical community names a
+   row should be findable under in the picker. Endpoints only — never the
+   unnamed middle of a corridor. The CSV is never modified; this is display/
+   search resolution only. */
+
+/* Tokens that are buildings/institutions, not searchable communities. */
+const COMMUNITY_SUPPRESS = new Set(["government headquarters", "ascom"]);
+
+/* Raw token (exact, case-insensitive) → canonical display name. Merges
+   duplicates and strips parenthetical/street detail to a clean place name. */
+const COMMUNITY_ALIASES = {
+  "new florida estate (bellevue chopin)": "New Florida Estate",
+  "morne daniel (small section near chinese embassy)": "Morne Daniel",
+  "central and east jimmit": "Jimmit",
+  "amba": "Amba/Enbas",
+};
+
+/* Corridor / region phrases → the explicitly-named endpoint communities they
+   should surface under. Keyed by exact affected_communities token (lower-case). */
+const CORRIDOR_ENDPOINTS = {
+  "south between pointe michel and scotts head": ["Pointe Michel", "Scotts Head"],
+  "west coast up to portsmouth": ["Portsmouth"],
+  "east coast from atkinson to delices": ["Atkinson", "Delices", "Kalinago Territory"],
+  "pichelin to bagatelle": ["Pichelin", "Bagatelle"],
+  "marigot to hodges": ["Marigot", "Hodges"],
+  "sylvania to the kalinago territory": ["Kalinago Territory"],
+  "castle bruce through to the kalinago territory and north end": ["Castle Bruce", "Kalinago Territory"],
+  "jimmit to portsmouth": ["Jimmit", "Portsmouth"],
+  "bourne to wesley (sugar loaf east feeder)": ["Bourne", "Wesley"],
+  "wakama (castle bruce) to wesley": ["Wakama/Wakaman Point", "Wesley"],
+  "west coast from upper fond cole to north end marigot": ["Upper Fond Cole", "Marigot"],
+  "canefield to jimmit": ["Canefield", "Jimmit"],
+  "sections of canefield flat including 1st street": ["Canefield"],
+  "sections of fond baron": ["Fond Baron"],
+  "sections of belfast": ["Belfast"],
+};
+
+const communityNames = (r) => {
+  const out = new Set();
+  splitList(r.affected_communities).forEach((tok) => {
+    const key = tok.toLowerCase();
+    if (CORRIDOR_ENDPOINTS[key]) { CORRIDOR_ENDPOINTS[key].forEach((n) => out.add(n)); return; }
+    if (COMMUNITY_ALIASES[key]) { out.add(COMMUNITY_ALIASES[key]); return; }
+    if (COMMUNITY_SUPPRESS.has(key)) return;
+    /* drop pure street/region tokens that aren't a named community */
+    if (/\b(to|from|between|including|across|parts of|sections of|several|multiple|road to|street|avenue|lane|drive|boulevard|feeder|estate pump road)\b/i.test(tok)) return;
+    if (/customers|island|goodwill.*south|south of/i.test(tok)) return;
+    if (tok.length > 1) out.add(tok);
+  });
+  return out;
+};
+
+/* True when a selected community is surfaced for a row only via a corridor
+   phrase (so the UI can show the "reported by corridor" note). */
+const isCorridorMatch = (r, community) =>
+  splitList(r.affected_communities).some((tok) => {
+    const eps = CORRIDOR_ENDPOINTS[tok.toLowerCase()];
+    return eps && eps.includes(community);
+  });
 const median = (arr) => { const a = arr.filter((x) => x != null).sort((x, y) => x - y); if (!a.length) return null; const m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
 const average = (arr) => { const a = arr.filter((x) => x != null); return a.length ? a.reduce((s, v) => s + v, 0) / a.length : null; };
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -291,12 +350,7 @@ function OutageDashboard() {
   }, [data]);
   const communities = useMemo(() => {
     const s = new Set();
-    const exclude = /\b(to|from|between|including|across|parts of|sections of|several|multiple|road to|street|avenue|lane|drive|boulevard|feeder|estate pump road)\b/i;
-    data.forEach((r) => {
-      if (!isIslandWide(r)) splitList(r.affected_communities).forEach((c) => {
-        if (c.length > 1 && !exclude.test(c) && !/customers|island|goodwill.*south|south of/i.test(c)) s.add(c);
-      });
-    });
+    data.forEach((r) => { if (!isIslandWide(r)) communityNames(r).forEach((c) => s.add(c)); });
     return [...s].sort();
   }, [data]);
 
@@ -371,7 +425,8 @@ function OutageDashboard() {
 
 /* ════════ RESIDENT ════════ */
 function Resident({ data, communities, community, setCommunity }) {
-  const mine = useMemo(() => (!community ? [] : data.filter((r) => isIslandWide(r) || splitList(r.affected_communities).includes(community))), [data, community]);
+  const mine = useMemo(() => (!community ? [] : data.filter((r) => isIslandWide(r) || communityNames(r).has(community))), [data, community]);
+  const hasCorridorMatch = useMemo(() => !!community && mine.some((r) => isCorridorMatch(r, community)), [mine, community]);
   const restored = mine.filter((r) => r._actualH != null);
   const avgDur = average(restored.map((r) => r._actualH));
   const planned = mine.filter((r) => /^planned/i.test(r.outage_status)).length;
@@ -403,6 +458,13 @@ function Resident({ data, communities, community, setCommunity }) {
         </div>
         {community && <div style={{ fontSize: 13, color: C.sub }}>Island-wide outages are counted here too — they affect everyone.</div>}
       </div>
+
+      {community && hasCorridorMatch && (
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "12px 15px", borderRadius: 12, background: C.amberWash, border: `1px solid ${C.amberSoft}`, marginBottom: 18 }}>
+          <AlertTriangle size={16} color={C.amberDeep} style={{ flexShrink: 0, marginTop: 1 }} />
+          <div style={{ fontSize: 12.5, color: C.sub, lineHeight: 1.55 }}>DOMLEC reported some of these by region or corridor (e.g. "Jimmit to Portsmouth") rather than naming every community, so an outage may appear here because it affected the wider corridor this place sits on.</div>
+        </div>
+      )}
 
       {!community ? (
         <Card style={{ padding: 44, textAlign: "center", background: `linear-gradient(180deg, ${C.amberWash}, ${C.panel})` }}>
